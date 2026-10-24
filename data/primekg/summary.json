@@ -1,0 +1,6 @@
+{
+  "nodes": 19385,
+  "clinical_edges": 380760,
+  "drug_drug_edges": 200000,
+  "drug_drug_capped": true
+}
