@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+env/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Data
+data/index/
+data/passages/*.jsonl
+data/primekg/nodes.tab
+data/primekg/edges.csv
+data/eval/
+!data/index/.gitkeep
+!data/passages/.gitkeep
+!data/primekg/.gitkeep
+!data/eval/.gitkeep
+
+# Node
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Misc
+CDSS.pdf
