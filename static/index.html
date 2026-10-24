@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clinical decision support</title>
+  <style>
+    :root {
+      --ink: #1c2430;
+      --muted: #5c6770;
+      --paper: #f3f0e8;
+      --card: #fffdf8;
+      --line: #d9d2c5;
+      --flag: #8a3412;
+      --flag-bg: #f8ebe3;
+      --ok: #1f4d3a;
+      --ix: #1e3a5f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    main { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-weight: 600; font-size: 1.6rem; margin-bottom: 0.2rem; }
+    .notice { color: var(--muted); margin-top: 0; }
+    form { display: grid; gap: 10px; margin: 24px 0; }
+    label { font-size: 0.85rem; color: var(--muted); }
+    input, textarea {
+      width: 100%;
+      font: inherit;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: white;
+    }
+    button {
+      width: fit-content;
+      font: inherit;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: white;
+      border: 0;
+      cursor: pointer;
+    }
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 16px 18px;
+      margin-top: 16px;
+    }
+    h2 { font-size: 0.95rem; margin: 0 0 10px; letter-spacing: 0.02em; }
+    .claim { margin: 0 0 10px; line-height: 1.45; }
+    .flag { background: var(--flag-bg); color: var(--flag); padding: 0 4px; }
+    .supported { color: var(--ok); }
+    .ix { border-left: 4px solid var(--ix); }
+    .error { color: var(--flag); }
+    ul { margin: 0; padding-left: 18px; }
+    a { color: var(--ix); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Clinical decision support</h1>
+    <p class="notice">This is decision support for a clinician. It is not a diagnosis or a treatment order.</p>
+    <form id="consult">
+      <label for="question">Question</label>
+      <textarea id="question" rows="3" placeholder="Treatment considerations in sepsis with kidney injury"></textarea>
+      <label for="subject">MIMIC demo subject_id (optional)</label>
+      <input id="subject" placeholder="10000032" />
+      <button type="submit">Consult</button>
+    </form>
+    <p id="status" class="notice"></p>
+    <div id="out"></div>
+  </main>
+  <script>
+    const form = document.getElementById("consult");
+    const status = document.getElementById("status");
+    const out = document.getElementById("out");
+
+    function section(title, html, className) {
+      return `<article class="${className || ""}"><h2>${title}</h2>${html}</article>`;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "Running retrieval, graph lookup, and the support check.";
+      out.innerHTML = "";
+      const body = {
+        question: document.getElementById("question").value.trim() || null,
+        subject_id: document.getElementById("subject").value.trim() || null
+      };
+      const response = await fetch("/consult", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        status.textContent = "";
+        out.innerHTML = section("Could not complete", `<p class="error">${payload.detail || "Request failed."}</p>`);
+        return;
+      }
+      status.textContent = payload.notice;
+      const claims = (payload.claims || []).map((claim) => {
+        const cites = (claim.citation_ids || []).map((id) => `<span>${id}</span>`).join(" ");
+        const flag = claim.flag ? ` <span class="flag">${claim.flag}</span>` : ` <span class="supported">supported</span>`;
+        return `<p class="claim">${claim.text} ${cites}${flag}</p>`;
+      }).join("");
+      const interactions = (payload.interactions || []).length
+        ? `<ul>${payload.interactions.map((row) => `<li><strong>${row.drug_a} + ${row.drug_b}</strong> — ${row.relation}<br>${row.via}</li>`).join("")}</ul>`
+        : "<p>No drug pair or contraindication was returned for the matched nodes.</p>";
+      const sources = `<ul>${(payload.sources || []).map((source) => `<li><a href="${source.url}">${source.id}</a> — ${source.title}</li>`).join("")}</ul>`;
+      let patient = "";
+      if (payload.patient) {
+        const card = payload.patient;
+        const missed = (card.unmatched_drugs || []).length
+          ? `<p>Unmatched drug names: ${card.unmatched_drugs.join(", ")}</p>` : "";
+        patient = section("Patient context", `<p>Age ${card.age}, ${card.sex}, ${card.admission_type}. Admission ${card.hadm_id}.</p><p>Diagnoses: ${card.diagnoses.join("; ")}</p><p>Drugs: ${card.drugs.join("; ")}</p><p>Abnormal labs: ${(card.abnormal_labs || []).join("; ")}</p>${missed}`);
+      }
+      out.innerHTML = [
+        section("Recommendation", `<p>${(payload.recommendation || "").replaceAll("\n", "<br>")}</p>`),
+        section("Claims", claims || "<p>No claims.</p>"),
+        section("Drug interaction chain", interactions, "ix"),
+        section("Sources", sources),
+        patient
+      ].join("");
+    });
+  </script>
+</body>
+</html>
